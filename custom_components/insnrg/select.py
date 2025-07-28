@@ -16,6 +16,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import aiohttp_client
 from . import InsnrgPoolEntity
 from .const import DOMAIN
+from .polling_mixin import PollingMixin
 import logging
 _LOGGER = logging.getLogger(__name__)
 KEYS_TO_CHECK = [
@@ -74,19 +75,22 @@ async def async_setup_entry(
     ]
     async_add_entities(entities, False)
 
-class InsnrgPoolSelect(InsnrgPoolEntity, SelectEntity):
+class InsnrgPoolSelect(InsnrgPoolEntity, SelectEntity, PollingMixin):
     """Select representing Insnrg Pool data."""
     def __init__(self, coordinator, hass, entry, description):
+        """Initialize Insnrg Pool select."""
         super().__init__(coordinator, entry, description)
         self.insnrg_pool = InsnrgPool(
             aiohttp_client.async_get_clientsession(hass),
             entry.data[CONF_EMAIL],
             entry.data[CONF_PASSWORD],
         )
+        self.hass = hass # Required for polling mixin
+        # Initialize _attr_current_option based on current coordinator data
+        self._attr_current_option = self._get_current_option_from_coordinator()
 
-    @property
-    def current_option(self):
-        """Return the current selected option."""
+    def _get_current_option_from_coordinator(self):
+        """Helper to get the current option from coordinator data."""
         if self.coordinator.data[self.entity_description.key]["deviceId"] == "LIGHT_MODE":
             return self.coordinator.data[self.entity_description.key]["modeValue"]
         elif self.coordinator.data[self.entity_description.key]['toggleStatus'] == "ON":
@@ -96,6 +100,12 @@ class InsnrgPoolSelect(InsnrgPoolEntity, SelectEntity):
         else:
             return "OFF"
 
+    @property
+    def current_option(self):
+        """Return the current selected option."""
+        # Always return _attr_current_option for optimistic updates
+        return self._attr_current_option
+        
     @property
     def options(self):
         """Return the list of available options."""
@@ -113,6 +123,10 @@ class InsnrgPoolSelect(InsnrgPoolEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
+        # Optimistic update
+        self._attr_current_option = option
+        self.async_write_ha_state()
+
         deviceId = self.coordinator.data[self.entity_description.key]["deviceId"]
         if deviceId == "LIGHT_MODE":
             supportCmd = self.coordinator.data[self.entity_description.key]["supportCmd"]
@@ -121,7 +135,15 @@ class InsnrgPoolSelect(InsnrgPoolEntity, SelectEntity):
             _LOGGER.info({option: option, deviceId: deviceId})
             success = await self.insnrg_pool.turn_the_switch(option, deviceId)
         if success:
-            await asyncio.sleep(3)
-            await self.coordinator.async_request_refresh()
+            # Pass a lambda that checks the actual coordinator data
+            poll_success = await self._async_poll_for_state_change(self, option, 
+                lambda: self._get_current_option_from_coordinator(), "option")
+            if not poll_success:
+                # Revert if polling failed, get actual state from coordinator
+                self._attr_current_option = self._get_current_option_from_coordinator()
+                self.async_write_ha_state()
         else:
-            _LOGGER.error("Failed to select the option.")
+            _LOGGER.error(f"Failed to select the option for {self.entity_id}.")
+            # Revert if command failed, get actual state from coordinator
+            self._attr_current_option = self._get_current_option_from_coordinator()
+            self.async_write_ha_state()

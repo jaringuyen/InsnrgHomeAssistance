@@ -6,10 +6,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-import asyncio
 
 from . import InsnrgPoolEntity
 from .const import DOMAIN
+from .polling_mixin import PollingMixin
 import logging
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,72 +32,72 @@ async def async_setup_entry(
         )
         entities.append(
             InsnrgPoolSwitch(
-                coordinator, config_entry.data[CONF_EMAIL], description, "VF_SETTING_SET_HEATER_MODE"
+                coordinator, config_entry.data[CONF_EMAIL], description, "VF_SETTING_SET_HEATER_MODE", hass
             )
         )
 
     async_add_entities(entities, True)
 
 
-class InsnrgPoolSwitch(InsnrgPoolEntity, SwitchEntity):
+class InsnrgPoolSwitch(InsnrgPoolEntity, SwitchEntity, PollingMixin):
     """Switch representing Insnrg Pool data."""
 
-    def __init__(self, coordinator, email, description, device_id):
+    def __init__(self, coordinator, email, description, device_id, hass):
         """Initialize Insnrg Pool switch."""
         super().__init__(coordinator, email, description)
         self._device_id = device_id
+        self.hass = hass # Required for polling mixin
+        # Initialize _attr_is_on based on current coordinator data
+        self._attr_is_on = self.coordinator.data[self._device_id].get("switchStatus") == "ON"
 
     @property
     def is_on(self) -> bool:
         """Return true if the switch is on."""
-        current_status = self.coordinator.data[self._device_id].get("switchStatus")
-        _LOGGER.debug(f"VF Contact - Heat Pump switchStatus: {current_status}")
-        return current_status == "ON"
+        # Always return _attr_is_on for optimistic updates
+        return self._attr_is_on
 
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the switch on."""
+        # Optimistic update
+        self._attr_is_on = True
+        self.async_write_ha_state()
+
         success = await self.coordinator.insnrg_pool.turn_the_switch(
             "ON", self._device_id
         )
         if success:
-            _LOGGER.debug(f"Attempting to turn ON {self.entity_id}. Polling for state change...")
-            target_state = "ON"
-            polling_timeout = 300  # seconds (5 minutes)
-            polling_interval = 5  # seconds
-            start_time = self.hass.loop.time()
-
-            while self.hass.loop.time() - start_time < polling_timeout:
-                await self.coordinator.async_request_refresh()
-                current_status = self.coordinator.data[self._device_id].get("switchStatus")
-                _LOGGER.debug(f"Polling {self.entity_id}. Current switchStatus: {current_status}, Target: {target_state}")
-                if current_status == target_state:
-                    _LOGGER.debug(f"{self.entity_id} successfully turned ON and state confirmed.")
-                    return
-                await asyncio.sleep(polling_interval)
-            _LOGGER.warning(f"Timeout: {self.entity_id} did not report {target_state} within {polling_timeout} seconds.")
+            # Pass a lambda that checks the actual coordinator data
+            poll_success = await self._async_poll_for_state_change(self, "ON", 
+                lambda: self.coordinator.data[self._device_id].get("switchStatus"), "switchStatus")
+            if not poll_success:
+                # Revert if polling failed, get actual state from coordinator
+                self._attr_is_on = self.coordinator.data[self._device_id].get("switchStatus") == "ON"
+                self.async_write_ha_state()
         else:
             _LOGGER.error(f"Failed to turn ON {self.entity_id}.")
+            # Revert if command failed, get actual state from coordinator
+            self._attr_is_on = self.coordinator.data[self._device_id].get("switchStatus") == "ON"
+            self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the switch off."""
+        # Optimistic update
+        self._attr_is_on = False
+        self.async_write_ha_state()
+
         success = await self.coordinator.insnrg_pool.turn_the_switch(
             "OFF", self._device_id
         )
         if success:
-            _LOGGER.debug(f"Attempting to turn OFF {self.entity_id}. Polling for state change...")
-            target_state = "OFF"
-            polling_timeout = 300  # seconds (5 minutes)
-            polling_interval = 5  # seconds
-            start_time = self.hass.loop.time()
-
-            while self.hass.loop.time() - start_time < polling_timeout:
-                await self.coordinator.async_request_refresh()
-                current_status = self.coordinator.data[self._device_id].get("switchStatus")
-                _LOGGER.debug(f"Polling {self.entity_id}. Current switchStatus: {current_status}, Target: {target_state}")
-                if current_status == target_state:
-                    _LOGGER.debug(f"{self.entity_id} successfully turned OFF and state confirmed.")
-                    return
-                await asyncio.sleep(polling_interval)
-            _LOGGER.warning(f"Timeout: {self.entity_id} did not report {target_state} within {polling_timeout} seconds.")
+            # Pass a lambda that checks the actual coordinator data
+            poll_success = await self._async_poll_for_state_change(self, "OFF", 
+                lambda: self.coordinator.data[self._device_id].get("switchStatus"), "switchStatus")
+            if not poll_success:
+                # Revert if polling failed, get actual state from coordinator
+                self._attr_is_on = self.coordinator.data[self._device_id].get("switchStatus") == "ON"
+                self.async_write_ha_state()
         else:
             _LOGGER.error(f"Failed to turn OFF {self.entity_id}.")
+            # Revert if command failed, get actual state from coordinator
+            self._attr_is_on = self.coordinator.data[self._device_id].get("switchStatus") == "ON"
+            self.async_write_ha_state()

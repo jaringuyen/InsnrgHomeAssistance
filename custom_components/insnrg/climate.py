@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 from .call_api import InsnrgPool
 from homeassistant.components.climate import (
     ClimateEntity,
@@ -16,6 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import aiohttp_client
 from . import InsnrgPoolEntity
 from .const import DOMAIN
+from .polling_mixin import PollingMixin
 import logging
 _LOGGER = logging.getLogger(__name__)
 KEYS_TO_CHECK = ["SPA_CONTROL", "POOL_CONTROL"]
@@ -40,17 +42,21 @@ async def async_setup_entry(
     ]
     async_add_entities(entities, False)
 
-class InsnrgPoolClimate(InsnrgPoolEntity, ClimateEntity):
+class InsnrgPoolClimate(InsnrgPoolEntity, ClimateEntity, PollingMixin):
     """Climate entity representing Insnrg Pool data."""
     _attr_hvac_modes = [None]
     _attr_hvac_mode = None
     def __init__(self, coordinator, hass, entry, description):
+        """Initialize Insnrg Pool climate."""
         super().__init__(coordinator, entry, description)
         self.insnrg_pool = InsnrgPool(
             aiohttp_client.async_get_clientsession(hass),
             entry.data[CONF_EMAIL],
             entry.data[CONF_PASSWORD],
         )
+        self.hass = hass # Required for polling mixin
+        # Initialize _attr_target_temperature based on current coordinator data
+        self._attr_target_temperature = self.coordinator.data[self.entity_description.key].get("thermostatStatus", {}).get("ggPoolSetTemperature") or self.coordinator.data[self.entity_description.key].get("thermostatStatus", {}).get("value")
     
     @property
     def supported_features(self) -> str | None:
@@ -90,17 +96,28 @@ class InsnrgPoolClimate(InsnrgPoolEntity, ClimateEntity):
     @property
     def target_temperature(self) -> float | None:
         """Return the target temperature."""
-        if 'ggPoolSetTemperature' in self.coordinator.data[self.entity_description.key]["thermostatStatus"]:
-            return self.coordinator.data[self.entity_description.key]["thermostatStatus"]["ggPoolSetTemperature"]
-        else:
-            return self.coordinator.data[self.entity_description.key]["thermostatStatus"]["value"]
+        # Always return _attr_target_temperature for optimistic updates
+        return self._attr_target_temperature
     
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
         temp_value = kwargs.get("temperature")
+        # Optimistic update
+        self._attr_target_temperature = temp_value
+        self.async_write_ha_state()
+
         deviceId = self.coordinator.data[self.entity_description.key]["deviceId"]
         success = await self.insnrg_pool.set_thermostat_temp(temp_value, deviceId)
         if success:
-            await self.coordinator.async_request_refresh()
+            # Pass a lambda that checks the actual coordinator data
+            poll_success = await self._async_poll_for_state_change(self, temp_value, 
+                lambda: self.coordinator.data[self.entity_description.key].get("thermostatStatus", {}).get("ggPoolSetTemperature") or self.coordinator.data[self.entity_description.key].get("thermostatStatus", {}).get("value"), "target temperature")
+            if not poll_success:
+                # Revert if polling failed, get actual state from coordinator
+                self._attr_target_temperature = self.coordinator.data[self.entity_description.key].get("thermostatStatus", {}).get("ggPoolSetTemperature") or self.coordinator.data[self.entity_description.key].get("thermostatStatus", {}).get("value")
+                self.async_write_ha_state()
         else:
-            _LOGGER.error("Set temp failed.")
+            _LOGGER.error(f"Failed to set the temperature for {self.entity_id}.")
+            # Revert if command failed, get actual state from coordinator
+            self._attr_target_temperature = self.coordinator.data[self.entity_description.key].get("thermostatStatus", {}).get("ggPoolSetTemperature") or self.coordinator.data[self.entity_description.key].get("thermostatStatus", {}).get("value")
+            self.async_write_ha_state()

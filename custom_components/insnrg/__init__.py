@@ -17,7 +17,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 from .const import ATTRIBUTION, DOMAIN
 
-PLATFORMS = [Platform.SELECT, Platform.CLIMATE, Platform.SENSOR, Platform.NUMBER]
+PLATFORMS = [Platform.SELECT, Platform.CLIMATE, Platform.SENSOR, Platform.NUMBER, Platform.SWITCH]
 _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Insnrg Pool from a config entry."""

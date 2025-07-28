@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import aiohttp_client
 from . import InsnrgPoolEntity
 from .const import DOMAIN
-from .polling_mixin import PollingMixin
+from .polling_mixin import PollingMixin, STARTER_ICON
 import logging
 _LOGGER = logging.getLogger(__name__)
 KEYS_TO_CHECK = ["PH", "ORP"]
@@ -91,13 +91,22 @@ class InsnrgPoolNumber(InsnrgPoolEntity, NumberEntity, PollingMixin):
         # Optimistic update
         self._attr_native_value = value
         self.async_write_ha_state()
+        original_icon = getattr(self, '_attr_icon', None) # Capture original icon
+        self._attr_icon = STARTER_ICON # Set starter icon
+        self.async_write_ha_state()
 
         deviceId = self.coordinator.data[self.entity_description.key]["deviceId"]
-        success = await self.insnrg_pool.set_chemistry(value, deviceId)
+        api_call_task = asyncio.create_task(self.insnrg_pool.set_chemistry(value, deviceId))
+        
+        await asyncio.sleep(1.0) # Delay for 1 second before starting clock animation
+
+        animation_task = asyncio.create_task(self._async_animate_icon(self, original_icon))
+        success = await api_call_task # Wait for the API call to complete
+
         if success:
             # Pass a lambda that checks the actual coordinator data
-            poll_success = await self._async_poll_for_state_change(self, value, 
-                lambda: self.coordinator.data[self.entity_description.key]["thermostatStatus"]["setPoint"], "value")
+            poll_success = await self._async_poll_for_state_change(self, original_icon, value, 
+                lambda: self.coordinator.data[self.entity_description.key]["thermostatStatus"]["setPoint"], entity_type="value", animation_task=animation_task)
             if not poll_success:
                 # Revert if polling failed, get actual state from coordinator
                 self._attr_native_value = self.coordinator.data[self.entity_description.key]["thermostatStatus"]["setPoint"]

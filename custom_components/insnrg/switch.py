@@ -6,9 +6,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+import asyncio
 
 from . import InsnrgPoolEntity
 from .const import DOMAIN
+import logging
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -47,7 +50,9 @@ class InsnrgPoolSwitch(InsnrgPoolEntity, SwitchEntity):
     @property
     def is_on(self) -> bool:
         """Return true if the switch is on."""
-        return self.coordinator.data[self._device_id].get("switchStatus") == "ON"
+        current_status = self.coordinator.data[self._device_id].get("switchStatus")
+        _LOGGER.debug(f"VF Contact - Heat Pump switchStatus: {current_status}")
+        return current_status == "ON"
 
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the switch on."""
@@ -55,7 +60,23 @@ class InsnrgPoolSwitch(InsnrgPoolEntity, SwitchEntity):
             "ON", self._device_id
         )
         if success:
-            await self.coordinator.async_request_refresh()
+            _LOGGER.debug(f"Attempting to turn ON {self.entity_id}. Polling for state change...")
+            target_state = "ON"
+            polling_timeout = 300  # seconds (5 minutes)
+            polling_interval = 5  # seconds
+            start_time = self.hass.loop.time()
+
+            while self.hass.loop.time() - start_time < polling_timeout:
+                await self.coordinator.async_request_refresh()
+                current_status = self.coordinator.data[self._device_id].get("switchStatus")
+                _LOGGER.debug(f"Polling {self.entity_id}. Current switchStatus: {current_status}, Target: {target_state}")
+                if current_status == target_state:
+                    _LOGGER.debug(f"{self.entity_id} successfully turned ON and state confirmed.")
+                    return
+                await asyncio.sleep(polling_interval)
+            _LOGGER.warning(f"Timeout: {self.entity_id} did not report {target_state} within {polling_timeout} seconds.")
+        else:
+            _LOGGER.error(f"Failed to turn ON {self.entity_id}.")
 
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the switch off."""
@@ -63,4 +84,20 @@ class InsnrgPoolSwitch(InsnrgPoolEntity, SwitchEntity):
             "OFF", self._device_id
         )
         if success:
-            await self.coordinator.async_request_refresh()
+            _LOGGER.debug(f"Attempting to turn OFF {self.entity_id}. Polling for state change...")
+            target_state = "OFF"
+            polling_timeout = 300  # seconds (5 minutes)
+            polling_interval = 5  # seconds
+            start_time = self.hass.loop.time()
+
+            while self.hass.loop.time() - start_time < polling_timeout:
+                await self.coordinator.async_request_refresh()
+                current_status = self.coordinator.data[self._device_id].get("switchStatus")
+                _LOGGER.debug(f"Polling {self.entity_id}. Current switchStatus: {current_status}, Target: {target_state}")
+                if current_status == target_state:
+                    _LOGGER.debug(f"{self.entity_id} successfully turned OFF and state confirmed.")
+                    return
+                await asyncio.sleep(polling_interval)
+            _LOGGER.warning(f"Timeout: {self.entity_id} did not report {target_state} within {polling_timeout} seconds.")
+        else:
+            _LOGGER.error(f"Failed to turn OFF {self.entity_id}.")

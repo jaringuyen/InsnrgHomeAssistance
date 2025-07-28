@@ -62,7 +62,7 @@ class InsnrgPoolDataUpdateCoordinator(DataUpdateCoordinator):
         )
         self.hass = hass
         self.entry = entry
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=timedelta(minutes=15))
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=timedelta(minutes=5))
     async def _async_update_data(self):
         """Update data via library."""
         data = {}

@@ -49,7 +49,9 @@ class InsnrgPool:
             resp = await self._session.post(URL_DATA, headers=head, json=body)
             result_dict = {}
             if resp.status == 200:
-                discoverData = await resp.json(content_type=None)                
+                discoverData = await resp.json(content_type=None)
+                _LOGGER.debug(f"getall API response data: {discoverData}")
+
                 for item in discoverData:
                     device_id = item['deviceId']
                     status = item['properties']
@@ -74,6 +76,7 @@ class InsnrgPool:
                     if "options" in item:
                         result_dict[device_id]["modeList"] = item['options']
                 results = result_dict
+                _LOGGER.debug(f"Parsed result_dict: {results}")
             else:
                 raise InsnrgPoolError(resp.status,"Server error.")
         else:

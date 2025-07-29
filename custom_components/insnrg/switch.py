@@ -24,18 +24,21 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][config_entry.entry_id]
 
     entities = []
-    # We are looking for the 'VF Contact - Heat Pump' which has deviceId 'VF_SETTING_SET_HEATER_MODE'
-    if "VF_SETTING_SET_HEATER_MODE" in coordinator.data:
-        heater_device = coordinator.data["VF_SETTING_SET_HEATER_MODE"]
-        description = SwitchEntityDescription(
-            key="VF_SETTING_SET_HEATER_MODE",
-            name=heater_device["name"],
-        )
-        entities.append(
-            InsnrgPoolSwitch(
-                coordinator, config_entry.data[CONF_EMAIL], description, "VF_SETTING_SET_HEATER_MODE", hass
+    
+    switch_devices = ["VF_SETTING_SET_HEATER_MODE", "SPA"]
+
+    for device_id in switch_devices:
+        if device_id in coordinator.data:
+            device = coordinator.data[device_id]
+            description = SwitchEntityDescription(
+                key=device_id,
+                name=f'{device["name"]} Switch',
             )
-        )
+            entities.append(
+                InsnrgPoolSwitch(
+                    coordinator, config_entry.data[CONF_EMAIL], description, device_id, hass
+                )
+            )
 
     async_add_entities(entities, True)
 

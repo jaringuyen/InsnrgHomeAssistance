@@ -10,7 +10,7 @@
  <img src="https://github.com/user-attachments/assets/4b954930-9611-4408-a047-09a35a6e01cc" alt="Image">
 </p>
 
-The Insnrg custom integration sets up 38 sensors:
+The Insnrg custom integration sets up 40 sensors:
 
 - **SPA**
 - **Filter Mode**
@@ -33,6 +33,8 @@ The Insnrg custom integration sets up 38 sensors:
   - Enabled
 - **VF Contact data for each of the 1 Vi-VF Contact and 3 Hub-VF Contacts**:
   - Heat Pump, Gas
+- **Pump Speed**
+- **Chlorinator**
 
 ---
 

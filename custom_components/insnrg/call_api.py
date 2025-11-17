@@ -71,6 +71,22 @@ class InsnrgPool:
                             'modeValue': next((prop['value'] for prop in status if prop['namespace'] == 'Alexa.ModeController'), ''),
                             "modeList" : item['options']
                             }
+                    if item['type'][0] == "PUMP_SPEED":
+                        result_dict["PUMP_SPEED"] = {
+                            'name': "Pump Speed",
+                            'deviceId': item['deviceId'],
+                            'supportCmd': item['deviceId'],
+                            'modeValue': next((prop['value'] for prop in status if prop['namespace'] == 'Alexa.ModeController'), ''),
+                            "modeList" : item['options']
+                            }
+                    if item['type'][0] == "CHLORINATOR":
+                        result_dict["CHLORINATOR"] = {
+                            'name': "Chlorinator Level",
+                            'deviceId': item['deviceId'],
+                            'supportCmd': item['deviceId'],
+                            'modeValue': next((prop['value'] for prop in status if prop['namespace'] == 'Alexa.ModeController'), ''),
+                            "modeList" : item['options']
+                            }
                     if "options" in item:
                         result_dict[device_id]["modeList"] = item['options']
                 results = result_dict
@@ -178,6 +194,32 @@ class InsnrgPool:
                 body = {
                     "cmd": "setLightMode",
                     "lightValue": mode,
+                    "deviceId": deviceId,
+                    "userId": data['user']['userId']
+                    }
+                head = {'Authorization': 'Bearer {}'.format(data["auth"]["idToken"])}
+                set_state_resp = await self._session.post(URL_DATA, headers=head, json=body)
+                if set_state_resp.status == 200:
+                    return True
+                else: 
+                    raise InsnrgPoolError(set_state_resp.status, "Failed to turn the switch")
+        except Exception as e:
+            _LOGGER.error(f"Error turning the switch: {str(e)}")
+            return False
+    async def set_pump_value(self, mode, deviceId):
+        LOGIN_DATA = {
+            "userName": self._userName,
+            "password": self._password,
+        }
+        try:
+            """Login to the system."""
+            resp = await self._session.post(self._url_login, json=LOGIN_DATA)
+            if resp.status == 200:
+                data = await resp.json(content_type=None)
+                URL_DATA = CMD_URL
+                body = {
+                    "cmd": "setPumpValue",
+                    "pumpValue": mode,
                     "deviceId": deviceId,
                     "userId": data['user']['userId']
                     }

@@ -48,7 +48,9 @@ KEYS_TO_CHECK = [
     "VF_CONTACT_1",
     "VF_CONTACT_HUB_1",
     "VF_CONTACT_HUB_2",
-    "VF_CONTACT_HUB_3"
+    "VF_CONTACT_HUB_3",
+    "PUMP_SPEED",
+    "CHLORINATOR"
 ]
 LIGHT_MODE_LIST = []
 
@@ -87,7 +89,7 @@ class InsnrgPoolSelect(InsnrgPoolEntity, SelectEntity):
     @property
     def current_option(self):
         """Return the current selected option."""
-        if self.coordinator.data[self.entity_description.key]["deviceId"] == "LIGHT_MODE":
+        if self.coordinator.data[self.entity_description.key]["deviceId"] in ["LIGHT_MODE", "PUMP_SPEED", "CHLORINATOR"]:
             return self.coordinator.data[self.entity_description.key]["modeValue"]
         elif self.coordinator.data[self.entity_description.key]['toggleStatus'] == "ON":
             return "TIMER"
@@ -104,7 +106,7 @@ class InsnrgPoolSelect(InsnrgPoolEntity, SelectEntity):
                         "TIMER_3_STATUS","TIMER_4_STATUS",
                         "TIMER_1_CHL", "TIMER_2_CHL", "TIMER_3_CHL", 
                         "TIMER_4_CHL"]
-        if deviceId == "LIGHT_MODE":
+        if deviceId == "LIGHT_MODE" or deviceId == "PUMP_SPEED" or deviceId == "CHLORINATOR":
             return self.coordinator.data[self.entity_description.key]["modeList"]
         elif deviceId == "SPA" or deviceId == "TIMERS" or any(item == deviceId for item in timerDevices):
             return ["ON", "OFF"]
@@ -117,6 +119,9 @@ class InsnrgPoolSelect(InsnrgPoolEntity, SelectEntity):
         if deviceId == "LIGHT_MODE":
             supportCmd = self.coordinator.data[self.entity_description.key]["supportCmd"]
             success = await self.insnrg_pool.change_light_mode(option, supportCmd)
+        elif deviceId in ["PUMP_SPEED", "CHLORINATOR"]:
+            _LOGGER.info({option: option, deviceId: deviceId})
+            success = await self.insnrg_pool.set_pump_value(option, deviceId)
         else:
             _LOGGER.info({option: option, deviceId: deviceId})
             success = await self.insnrg_pool.turn_the_switch(option, deviceId)

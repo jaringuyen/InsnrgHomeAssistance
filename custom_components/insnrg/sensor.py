@@ -1,6 +1,5 @@
 """Sensor platform for the Insnrg Pool sensor."""
 from __future__ import annotations
-
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,

@@ -55,13 +55,6 @@ async def async_setup_entry(
 
 class InsnrgPoolSensor(InsnrgPoolEntity, SensorEntity):
     """Sensor representing Insnrg Pool data."""
-
-    # Fix for the previous AttributeError by overriding the problematic base class logic.
-    @property
-    def state(self):
-        """Return the state of the entity using the correct native_value property."""
-        return self.native_value
-        
     @property
     def native_value(self):
         """State of the sensor."""

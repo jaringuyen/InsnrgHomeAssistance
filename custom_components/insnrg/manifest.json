@@ -8,5 +8,5 @@
   "issue_tracker": "https://github.com/jaringuyen/InsnrgHomeAssistance/issues",
   "loggers": ["insnrg"],
   "requirements": [],
-  "version": "1.0.2"
+  "version": "1.0.3"
 }

@@ -1,5 +1,7 @@
 """Sensor platform for the Insnrg Pool sensor."""
 from __future__ import annotations
+from homeassistant.const import __version__ as HA_VERSION 
+from awesomeversion import AwesomeVersion
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
@@ -15,6 +17,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import InsnrgPoolEntity
 from .const import DOMAIN
+import logging
+_LOGGER = logging.getLogger(__name__)
 KEYS_TO_CHECK = ["PH", "ORP"]
 
 async def async_setup_entry(
@@ -37,11 +41,13 @@ async def async_setup_entry(
             # Conditionally set specific attributes based on the key
             if key == "PH":
                 description_data['device_class'] = SensorDeviceClass.PH
-                description_data['unit_of_measurement'] = "pH"
                 
             elif key == "ORP":
-                description_data['device_class'] = SensorDeviceClass.VOLTAGE
-                description_data['unit_of_measurement'] = UnitOfElectricPotential.MILLIVOLT
+                description_data['device_class'] = SensorDeviceClass.VOLTAGE               
+                if AwesomeVersion(HA_VERSION) >= AwesomeVersion("2024.0.0"):
+                    description_data['native_unit_of_measurement'] = UnitOfElectricPotential.MILLIVOLT
+                else:
+                    description_data['native_unit_of_measurement'] = "mV"
                 description_data['icon'] = "mdi:flash"
             
             sersor_descriptions.append(SensorEntityDescription(**description_data))

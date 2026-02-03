@@ -62,4 +62,15 @@ class InsnrgPoolSensor(InsnrgPoolEntity, SensorEntity):
     @property
     def native_value(self):
         """State of the sensor."""
-        return self.coordinator.data[self.entity_description.key]["temperatureSensorStatus"]["value"]
+        device_data = self.coordinator.data.get(self.entity_description.key, {}) 
+        sensor_status = device_data.get("temperatureSensorStatus", {}) 
+        value = sensor_status.get("value")
+        if self.entity_description.key in ["PH", "ORP"]: 
+            if value in (None, "", " "): 
+                return None # Show Unavailable 
+            try: 
+                return float(value) 
+            except (ValueError, TypeError): 
+                _LOGGER.warning("Invalid %s value: %s", self.entity_description.key, value) 
+                return None
+        return value

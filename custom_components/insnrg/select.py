@@ -85,48 +85,62 @@ class InsnrgPoolSelect(InsnrgPoolEntity, SelectEntity):
             entry.data[CONF_EMAIL],
             entry.data[CONF_PASSWORD],
         )
+    @property 
+    def available(self) -> bool: 
+        """Return True if entity has valid data, else False (Unavailable).""" 
+        return self.entity_description.key in self.coordinator.data
 
     @property
     def current_option(self):
         """Return the current selected option."""
-        if self.coordinator.data[self.entity_description.key]["deviceId"] in ["LIGHT_MODE", "PUMP_SPEED", "CHLORINATOR"]:
-            return self.coordinator.data[self.entity_description.key]["modeValue"]
-        elif self.coordinator.data[self.entity_description.key]['toggleStatus'] == "ON":
-            return "TIMER"
-        elif self.coordinator.data[self.entity_description.key]['switchStatus'] == "ON":
-            return "ON"
-        else:
-            return "OFF"
+        device_data = self.coordinator.data.get(self.entity_description.key) 
+        if not device_data: 
+            return None # Entity Unavailable 
+        deviceId = device_data.get("deviceId")
+        if deviceId in ["LIGHT_MODE", "PUMP_SPEED", "CHLORINATOR"]: 
+            return device_data.get("modeValue") 
+        elif device_data.get("toggleStatus") == "ON": 
+            return "TIMER" 
+        elif device_data.get("switchStatus") == "ON": 
+            return "ON" 
+        else: return "OFF"
 
     @property
     def options(self):
+        device_data = self.coordinator.data.get(self.entity_description.key) 
+        if not device_data: 
+            return [] # No data → entity Unavailable
+        deviceId = device_data.get("deviceId")
         """Return the list of available options."""
-        deviceId = self.coordinator.data[self.entity_description.key]["deviceId"]
         timerDevices = ["TIMER_1_STATUS","TIMER_2_STATUS", 
                         "TIMER_3_STATUS","TIMER_4_STATUS",
                         "TIMER_1_CHL", "TIMER_2_CHL", "TIMER_3_CHL", 
                         "TIMER_4_CHL"]
-        if deviceId == "LIGHT_MODE" or deviceId == "PUMP_SPEED" or deviceId == "CHLORINATOR":
-            return self.coordinator.data[self.entity_description.key]["modeList"]
-        elif deviceId == "SPA" or deviceId == "TIMERS" or any(item == deviceId for item in timerDevices):
-            return ["ON", "OFF"]
-        else:
-            return ["ON", "OFF", "TIMER"]
+        if deviceId in ["LIGHT_MODE", "PUMP_SPEED", "CHLORINATOR"]: 
+            return device_data.get("modeList", []) 
+        elif deviceId in ["SPA", "TIMERS"] or deviceId in timerDevices: 
+            return ["ON", "OFF"] 
+        else: return ["ON", "OFF", "TIMER"]
 
     async def async_select_option(self, option: str) -> None:
+        device_data = self.coordinator.data.get(self.entity_description.key, {}) 
+        if not device_data: 
+            _LOGGER.error("No data for key %s, entity unavailable", self.entity_description.key) 
+            return
+        deviceId = device_data.get("deviceId")
+        _LOGGER.info({option: option, deviceId: deviceId}) 
         """Change the selected option."""
-        deviceId = self.coordinator.data[self.entity_description.key]["deviceId"]
-        if deviceId == "LIGHT_MODE":
-            supportCmd = self.coordinator.data[self.entity_description.key]["supportCmd"]
-            success = await self.insnrg_pool.change_light_mode(option, supportCmd)
-        elif deviceId in ["PUMP_SPEED", "CHLORINATOR"]:
-            _LOGGER.info({option: option, deviceId: deviceId})
-            success = await self.insnrg_pool.set_pump_value(option, deviceId)
-        else:
-            _LOGGER.info({option: option, deviceId: deviceId})
-            success = await self.insnrg_pool.turn_the_switch(option, deviceId)
-        if success:
-            await asyncio.sleep(3)
-            await self.coordinator.async_request_refresh()
-        else:
-            _LOGGER.error("Failed to select the option.")
+        if not deviceId: 
+            _LOGGER.error("DeviceId missing for key %s", self.entity_description.key) 
+            return 
+        if deviceId == "LIGHT_MODE": 
+            supportCmd = device_data.get("supportCmd") 
+            success = await self.insnrg_pool.change_light_mode(option, supportCmd) 
+        elif deviceId in ["PUMP_SPEED", "CHLORINATOR"]: 
+            success = await self.insnrg_pool.set_pump_value(option, deviceId) 
+        else: 
+            success = await self.insnrg_pool.turn_the_switch(option, deviceId) 
+        if success: 
+            await asyncio.sleep(3) 
+            await self.coordinator.async_request_refresh() 
+        else: _LOGGER.error("Failed to select the option.")

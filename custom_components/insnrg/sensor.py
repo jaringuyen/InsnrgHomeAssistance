@@ -41,9 +41,8 @@ async def async_setup_entry(
             # Conditionally set specific attributes based on the key
             if key == "PH":
                 description_data['device_class'] = SensorDeviceClass.PH
-                
             elif key == "ORP":
-                description_data['device_class'] = SensorDeviceClass.VOLTAGE               
+                description_data['device_class'] = SensorDeviceClass.VOLTAGE
                 if AwesomeVersion(HA_VERSION) >= AwesomeVersion("2024.0.0"):
                     description_data['native_unit_of_measurement'] = UnitOfElectricPotential.MILLIVOLT
                 else:

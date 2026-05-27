@@ -108,3 +108,4 @@ To reload a HACS integration in Home Assistant, follow these steps:
 - Click on the three-dot menu (⋮) next to the integration.
 - Select Reload from the menu.
 - If the integration doesn't support reloading, you might need to restart Home Assistant.
+- No email request needed for Insnrg 3rd Party REST API access.
